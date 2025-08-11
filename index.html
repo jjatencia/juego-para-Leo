@@ -255,7 +255,7 @@
   const fsBtn = document.getElementById('fsBtn');
   const confettiLayer = document.getElementById('celebrate');
 
-  let state = { grid: [], score: 0, movesLeft: 30, target: 6000, sound: true, status:'playing', level:'normal' };
+  let state = { grid: [], score: 0, movesLeft: 30, target: 5000, sound: true, status:'playing', level:'normal' };
   let locked = false; // bloquea entradas mientras hay animaciones/cambios
 
   function init(){
@@ -263,7 +263,7 @@
     boardEl.style.setProperty('--cols', COLS);
     boardEl.style.setProperty('--rows', ROWS);
     generateBoard();
-    state.score = 0; state.movesLeft = 20; state.target = LEVELS[state.level].target; state.status='playing';
+    state.score = 0; state.movesLeft = 30; state.target = LEVELS[state.level].target; state.status='playing';
     ensureMoves();
     render();
     updateHUD();
@@ -411,6 +411,7 @@
       toast('¡Pelota creada!');
       playTone(720);
       gravity(); fill(); ensureMoves(); render();
+      postActionChecks();
       return;
     }
 
@@ -588,15 +589,14 @@
   function spendMove(){
     if (state.movesLeft<=0) return; // seguridad
     state.movesLeft--; updateHUD();
-    if (state.movesLeft===0 && state.score < state.target){
-      gameOver();
-    }
+    // No hacemos gameOver aquí: dejamos que puntúe/caiga todo y luego decidimos en postActionChecks
   }
+
   function postActionChecks(){
     updateHUD();
-    if (state.score >= state.target && state.status==='playing'){
-      win();
-    }
+    if (state.status!=='playing') return;
+    if (state.score >= state.target) { win(); return; }
+    if (state.movesLeft === 0) { gameOver(); }
   }
 
   function gameOver(){ state.status='ended'; showModal('Game Over', 'Inténtalo de nuevo'); vibrate([50,30,50]); }
@@ -638,10 +638,10 @@
     const saveScore = state.score; const saveMoves = state.movesLeft; const saveStatus = state.status; const saveLevel = state.level;
 
     // Test 0: puntuación base
-    console.assert(scoreForCount(2)===5, 'Score 2 debe ser 5');
-    console.assert(scoreForCount(3)===10, 'Score 3 debe ser 10');
-    console.assert(scoreForCount(4)===15, 'Score 4 debe ser 15');
-    console.assert(scoreForCount(5)===25, 'Score 5 debe ser 25');
+    console.assert(scoreForCount(2)===15, 'Score 2 debe ser 15');
+    console.assert(scoreForCount(3)===30, 'Score 3 debe ser 30');
+    console.assert(scoreForCount(4)===50, 'Score 4 debe ser 50');
+    console.assert(scoreForCount(5)===80, 'Score 5 debe ser 80');
 
     // Test A: ensureMoves deja el tablero con jugadas >=2
     state.level='normal'; generateBoard(); ensureMoves(); console.assert(hasMoves(), 'TestA: jugadas (2+) tras ensureMoves');
@@ -675,8 +675,23 @@
     state.level='hard'; generateBoard(); const bigHard = countBigGroups(5);
     console.assert(bigHard <= bigEasy, 'TestE: Hard debe tener <= grupos grandes que Easy');
 
+    // Test F: última jugada puntúa y luego termina
+    state.level='normal';
+    state.grid = [
+      [n(1), n(1), n(2), n(3), n(4), n(0)],
+      ...Array.from({length: ROWS-1}, ()=>Array.from({length: COLS}, ()=>n(2)))
+    ];
+    state.movesLeft = 1; state.score = 0; state.status='playing'; render();
+    const beforeF = state.score;
+    const tap = document.createElement('div'); tap.className='tile'; tap.dataset.x='0'; tap.dataset.y='0';
+    onTileClick(tap,0,0);
+    setTimeout(()=>{
+      console.assert(state.score > beforeF, 'TestF: la última jugada debe sumar');
+      console.assert(state.status==='ended', 'TestF: tras la última jugada el juego termina');
+    }, 500);
+
     // Restaurar
-    setTimeout(()=>{ state.grid = saveGrid; state.score = saveScore; state.movesLeft = saveMoves; state.status = saveStatus; state.level = saveLevel; render(); updateHUD(); }, 650);
+    setTimeout(()=>{ state.grid = saveGrid; state.score = saveScore; state.movesLeft = saveMoves; state.status = saveStatus; state.level = saveLevel; render(); updateHUD(); }, 700);
   }
   function n(c){ return {kind:'normal', color:c, fall:0}; }
   function countBigGroups(min){
